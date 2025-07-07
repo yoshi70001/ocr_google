@@ -2,12 +2,17 @@
 package srtbuilder
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/google/generative-ai-go/genai"
+	"github.com/yoshi70001/googleDocsOCR/geminifix"
 )
 
 // SubtitleBlock representa una única entrada en un archivo SRT.
@@ -16,6 +21,27 @@ type SubtitleBlock struct {
 	StartTime string
 	EndTime   string
 	Text      string
+}
+
+// processBatch es una nueva función de ayuda para manejar la llamada a la IA.
+func processBatch(ctx context.Context, geminiClient *genai.Client, textBatch []string) []string {
+	log.Printf("  [AI] Enviando lote de %d textos a Gemini para corrección...", len(textBatch))
+
+	// Reintentos simples
+	var correctedBatch []string
+	var geminiErr error
+	for attempt := range 3 {
+		correctedBatch, geminiErr = geminifix.CorrectTextBatch(ctx, geminiClient, textBatch)
+		if geminiErr == nil {
+			log.Printf("  [✓] Lote procesado por Gemini.")
+			return correctedBatch // Éxito
+		}
+		log.Printf("  [!] ADVERTENCIA: Intento %d de Gemini falló para el lote: %v. Reintentando...", attempt+1, geminiErr)
+		time.Sleep(2 * time.Second)
+	}
+
+	log.Printf("  [!] ERROR: Todos los intentos de Gemini fallaron para el lote. Usando textos originales.")
+	return textBatch // Devolvemos el lote original si todo falla
 }
 
 func cleanOcrText(rawText string) string {
@@ -76,8 +102,10 @@ func parseFilename(filename string) (string, string, error) {
 
 // CreateSrtFromTextFiles lee una carpeta de archivos .txt, los ordena,
 // y construye un archivo .srt.
-func CreateSrtFromTextFiles(textFolder, outputSrtFile string) error {
+func CreateSrtFromTextFiles(textFolder, outputSrtFile string, geminiClient *genai.Client) error {
 	log.Println("--- Iniciando construcción de archivo SRT ---")
+	batchSize := 100
+	ctx := context.Background()
 
 	// 1. Leer y ordenar los archivos de texto. La ordenación es crucial.
 	files, err := os.ReadDir(textFolder)
@@ -122,6 +150,31 @@ func CreateSrtFromTextFiles(textFolder, outputSrtFile string) error {
 			EndTime:   end,
 			Text:      cleanOcrText(string(content)),
 		})
+	}
+	// Ahora, si tenemos cliente de IA, procesamos los textos en lotes
+	if geminiClient != nil {
+		for i := 0; i < len(blocks); i += batchSize {
+			end := min(i+batchSize, len(blocks))
+
+			// Extraemos el lote de textos originales
+			currentBatchBlocks := blocks[i:end]
+			originalTextBatch := make([]string, len(currentBatchBlocks))
+			for j, block := range currentBatchBlocks {
+				originalTextBatch[j] = block.Text
+			}
+
+			// Procesamos el lote con Gemini
+			correctedTextBatch := processBatch(ctx, geminiClient, originalTextBatch)
+
+			// Actualizamos los bloques con los textos corregidos
+			if len(correctedTextBatch) == len(currentBatchBlocks) {
+				for j := range currentBatchBlocks {
+					blocks[i+j].Text = correctedTextBatch[j]
+				}
+			} else {
+				log.Printf("[!] ERROR CRÍTICO: El tamaño del lote devuelto (%d) no coincide con el enviado (%d). Se usarán textos originales para este lote.", len(correctedTextBatch), len(currentBatchBlocks))
+			}
+		}
 	}
 
 	// 3. Escribir el archivo .srt final

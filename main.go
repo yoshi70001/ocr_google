@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/generative-ai-go/genai"
 	"github.com/yoshi70001/googleDocsOCR/gdrive"
+	"github.com/yoshi70001/googleDocsOCR/geminifix"
 	"github.com/yoshi70001/googleDocsOCR/srtbuilder"
 )
 
@@ -22,6 +25,21 @@ const (
 )
 
 func main() {
+	ctx := context.Background()
+
+	// Inicializar cliente de Gemini
+	var geminiClient *genai.Client
+	if os.Getenv("GEMINI_API_KEY") != "" {
+		var err error
+		geminiClient, err = geminifix.NewClient(ctx)
+		if err != nil {
+			log.Fatalf("Fallo al inicializar el cliente de Gemini: %v", err)
+		}
+		defer geminiClient.Close()
+		log.Println("✓ Cliente de Gemini inicializado.")
+	} else {
+		log.Println("[!] ADVERTENCIA: No se encontró la GEMINI_API_KEY. Se procederá sin corrección de IA.")
+	}
 	// --- PASO 1: PROCESAMIENTO OCR ---
 	log.Println("===== INICIANDO PASO 1: EXTRACCIÓN DE TEXTO (OCR) =====")
 
@@ -96,7 +114,7 @@ func main() {
 	// --- PASO 2: CONSTRUCCIÓN DEL SRT ---
 	log.Println("===== INICIANDO PASO 2: CREACIÓN DE ARCHIVO SRT =====")
 
-	err = srtbuilder.CreateSrtFromTextFiles(textsFolder, outputSrtFile)
+	err = srtbuilder.CreateSrtFromTextFiles(textsFolder, outputSrtFile, geminiClient)
 	if err != nil {
 		log.Fatalf("Fallo al crear el archivo SRT: %v", err)
 	}
