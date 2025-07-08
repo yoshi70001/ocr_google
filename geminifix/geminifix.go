@@ -34,16 +34,24 @@ func buildBatchAnimePrompt(texts []string) string {
 	}
 
 	return fmt.Sprintf(`
-Eres un experto transcriptor y corrector de subtítulos para anime. Tu tarea es corregir errores ortográficos y de dicción del siguiente lote de textos, que provienen de subtítulos consecutivos. Debes mejorar la redacción para que suene natural en español, pero SIN cambiar el significado original.
+Te proporcionaré un archivo de subtítulos en formato SRT que tiene texto mezclado en japonés y español, además de frases sin sentido o errores de transcripción.
 
-REGLAS IMPORTANTES:
-1.  **Respeta los nombres propios** y **sufijos honoríficos** japoneses (-san, -chan, etc.).
-2.  Mantén el tono y la consistencia del diálogo a lo largo de todas las líneas.
-3.  **Devuelve el resultado como un listado**, manteniendo el formato "LÍNEA <NÚMERO>: <TEXTO CORREGIDO>" para cada línea que te envié.
-4.  **DEBES DEVOLVER EXACTAMENTE EL MISMO NÚMERO DE LÍNEAS QUE RECIBISTE.** Si una línea no necesita cambios, repítela tal cual.
-5.  **NO AÑADAS NINGÚN OTRO TEXTO.** Solo la lista numerada de líneas corregidas.
+Quiero que:
 
-Lote de textos a corregir:
+Conserves el formato SRT (número de línea, marcas de tiempo, texto).
+
+Corrijas la gramática y ortografía del texto en español.
+
+Para las partes en japonés no traducidas (o nombres japoneses), si no hay traducción disponible, déjalas tal cual.
+
+Limpies cualquier texto suelto sin sentido, caracteres sobrantes o frases que no aportan nada (por ejemplo números aleatorios, palabras aisladas que no se entienden).
+
+Mantengas la coherencia de estilo como si fueran subtítulos profesionales de anime, breves y naturales.
+
+Responde con el archivo SRT corregido respetando el mismo orden de líneas y marcas de tiempo.
+
+Dame solo la respuesta sin explicaciones ni nada mas.
+
 %s
 `, numberedTexts.String())
 }
@@ -54,9 +62,8 @@ func CorrectTextBatch(ctx context.Context, client *genai.Client, batchToCorrect 
 		return []string{}, nil
 	}
 
-	model := client.GenerativeModel("gemini-1.5-flash-latest")
+	model := client.GenerativeModel("gemini-2.0-flash")
 	prompt := buildBatchAnimePrompt(batchToCorrect)
-
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
 		return nil, fmt.Errorf("error al generar contenido con Gemini: %w", err)
@@ -74,6 +81,7 @@ func CorrectTextBatch(ctx context.Context, client *genai.Client, batchToCorrect 
 	// --- PARSEAR LA RESPUESTA DE GEMINI ---
 	// Ahora debemos procesar la respuesta para extraer cada línea corregida.
 	correctedBatch := make([]string, len(batchToCorrect))
+	// fmt.Print(string(rawResponse))
 	lines := strings.Split(string(rawResponse), "\n")
 
 	parsedCount := 0
