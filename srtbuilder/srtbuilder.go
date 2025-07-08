@@ -82,7 +82,7 @@ func formatSrtTime(t string) (string, error) {
 // parseFilename extrae los tiempos de inicio y fin del nombre de archivo.
 func parseFilename(filename string) (string, string, error) {
 	base := strings.TrimSuffix(filename, filepath.Ext(filename))
-	parts := strings.Split(base, "___")
+	parts := strings.Split(base, "__")
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("el nombre de archivo no contiene el separador '__': %s", filename)
 	}
@@ -91,7 +91,11 @@ func parseFilename(filename string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-
+	auxend := strings.Split(parts[1], "_")
+	if len(auxend) > 4 {
+		auxend = auxend[:len(auxend)-1]
+		parts[1] = strings.Join(auxend, "_")
+	}
 	endTime, err := formatSrtTime(parts[1])
 	if err != nil {
 		return "", "", err
