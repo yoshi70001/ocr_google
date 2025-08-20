@@ -25,7 +25,11 @@ const (
 	outputSrtFile   = "subtitulo.srt"
 )
 
+var version = "development"
+
 func main() {
+	log.Printf("googleDocsOCR version %s", version)
+
        useGemini := flag.Bool("use-gemini", false, "Activar corrección de texto con Gemini")
        flag.Parse()
 
