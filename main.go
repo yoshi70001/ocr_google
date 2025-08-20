@@ -31,6 +31,7 @@ func main() {
 	log.Printf("googleDocsOCR version %s", version)
 
        useGemini := flag.Bool("use-gemini", false, "Activar corrección de texto con Gemini")
+       useLocation := flag.Bool("use-location", false, "Usar el nombre de la carpeta actual para el archivo SRT")
        flag.Parse()
 
        ctx := context.Background()
@@ -136,7 +137,17 @@ func main() {
 	// --- PASO 2: CONSTRUCCIÓN DEL SRT ---
 	log.Println("===== INICIANDO PASO 2: CREACIÓN DE ARCHIVO SRT =====")
 
-	err = srtbuilder.CreateSrtFromTextFiles(textsFolder, outputSrtFile, geminiClient)
+	outputSrtFileName := outputSrtFile
+	if *useLocation {
+		wd, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("No se pudo obtener el directorio de trabajo actual: %v", err)
+		}
+		outputSrtFileName = filepath.Base(wd) + ".srt"
+		log.Printf("El archivo de salida se nombrará según la carpeta actual: %s", outputSrtFileName)
+	}
+
+	err = srtbuilder.CreateSrtFromTextFiles(textsFolder, outputSrtFileName, geminiClient)
 	if err != nil {
 		log.Fatalf("Fallo al crear el archivo SRT: %v", err)
 	}
