@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"path/filepath"
@@ -25,23 +26,31 @@ const (
 )
 
 func main() {
-	ctx := context.Background()
+       useGemini := flag.Bool("use-gemini", false, "Activar corrección de texto con Gemini")
+       flag.Parse()
 
-	// Inicializar cliente de Gemini
-	var geminiClient *genai.Client
-	if os.Getenv("GEMINI_API_KEY") != "" {
-		var err error
-		geminiClient, err = geminifix.NewClient(ctx)
-		if err != nil {
-			log.Fatalf("Fallo al inicializar el cliente de Gemini: %v", err)
-		}
-		defer geminiClient.Close()
-		log.Println("✓ Cliente de Gemini inicializado.")
-	} else {
-		log.Println("[!] ADVERTENCIA: No se encontró la GEMINI_API_KEY. Se procederá sin corrección de IA.")
-	}
-	// --- PASO 1: PROCESAMIENTO OCR ---
-	log.Println("===== INICIANDO PASO 1: EXTRACCIÓN DE TEXTO (OCR) =====")
+       ctx := context.Background()
+
+       // Inicializar cliente de Gemini solo si se solicita
+       var geminiClient *genai.Client
+       if *useGemini {
+	       if os.Getenv("GEMINI_API_KEY") != "" {
+		       var err error
+		       geminiClient, err = geminifix.NewClient(ctx)
+		       if err != nil {
+			       log.Fatalf("Fallo al inicializar el cliente de Gemini: %v", err)
+		       }
+		       defer geminiClient.Close()
+		       log.Println("✓ Cliente de Gemini inicializado.")
+	       } else {
+		       log.Println("[!] ADVERTENCIA: No se encontró la GEMINI_API_KEY. Se procederá sin corrección de IA.")
+	       }
+       } else {
+	       log.Println("[!] Gemini desactivado. No se realizará corrección de IA.")
+       }
+
+       // --- PASO 1: PROCESAMIENTO OCR ---
+       log.Println("===== INICIANDO PASO 1: EXTRACCIÓN DE TEXTO (OCR) =====")
 
 	// Crear carpetas locales si no existen
 	if _, err := os.Stat(imagesFolder); os.IsNotExist(err) {
