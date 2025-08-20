@@ -18,16 +18,28 @@ import (
 	"google.golang.org/api/option"
 )
 
-const tokenFile = "token.json"
-const credentialsFile = "credentials.json"
+// getExecutableDir devuelve la ruta absoluta del directorio del ejecutable.
+func getExecutableDir() (string, error) {
+	ex, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(ex), nil
+}
 
 // getClient utiliza un archivo de configuración para solicitar un token,
 // luego lo guarda para usarlo en el futuro y devuelve el cliente HTTP.
 func getClient(config *oauth2.Config) *http.Client {
-	tok, err := tokenFromFile(tokenFile)
+	execDir, err := getExecutableDir()
+	if err != nil {
+		log.Fatalf("No se pudo obtener el directorio del ejecutable: %v", err)
+	}
+	tokenPath := filepath.Join(execDir, "token.json")
+
+	tok, err := tokenFromFile(tokenPath)
 	if err != nil {
 		tok = getTokenFromWeb(config)
-		saveToken(tokenFile, tok)
+		saveToken(tokenPath, tok)
 	}
 	return config.Client(context.Background(), tok)
 }
@@ -76,9 +88,15 @@ func saveToken(path string, token *oauth2.Token) {
 // AuthenticateAndGetService crea y devuelve un servicio de Drive autenticado.
 func AuthenticateAndGetService() (*drive.Service, error) {
 	ctx := context.Background()
-	b, err := os.ReadFile(credentialsFile)
+	execDir, err := getExecutableDir()
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo leer el archivo de credenciales: %v", err)
+		return nil, fmt.Errorf("no se pudo obtener el directorio del ejecutable: %v", err)
+	}
+	credentialsPath := filepath.Join(execDir, "credentials.json")
+
+	b, err := os.ReadFile(credentialsPath)
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo leer el archivo de credenciales en '%s': %v", credentialsPath, err)
 	}
 
 	config, err := google.ConfigFromJSON(b, drive.DriveScope)
