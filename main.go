@@ -83,16 +83,25 @@ func main() {
 	} else {
 		log.Printf("Se procesarán %d imágenes. Iniciando goroutines...", len(imagePaths))
 		startTime := time.Now()
+
+		// --- CONTROL DE CONCURRENCIA ---
+		const maxConcurrency = 5 // Limita a 5 subidas simultáneas
+		semaphore := make(chan struct{}, maxConcurrency)
 		var wg sync.WaitGroup
+		// -------------------------------
+
 		for _, imgFilename := range imagePaths {
 			wg.Add(1)
+			semaphore <- struct{}{} // Adquiere un "slot"
+
 			go func(filename string) {
 				defer wg.Done()
+				defer func() { <-semaphore }() // Libera el "slot" al final
+
 				fullImagePath := filepath.Join(imagesFolder, filename)
 				textFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + ".txt"
 				fullTextPath := filepath.Join(textsFolder, textFilename)
 
-				// Opcional: Si el txt ya existe, no hacer OCR de nuevo
 				if _, err := os.Stat(fullTextPath); err == nil {
 					log.Printf("[SKIP] El archivo de texto para '%s' ya existe. Saltando OCR.", filename)
 					return
